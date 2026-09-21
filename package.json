@@ -1,0 +1,29 @@
+{
+  "name": "d1sks",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "d1sks.com: the OpenDisk marketplace and OpenObject reference store. Every disk that serves /.well-known/opendisk.json, listed by free GiB, price, country and policy, with the store descriptor that keeps buckets at three replicas.",
+  "license": "MIT",
+  "engines": {
+    "bun": ">=1.3.0"
+  },
+  "packageManager": "bun@1.4.0",
+  "scripts": {
+    "dev": "bun run --hot src/main.js",
+    "start": "bun src/main.js",
+    "migrate": "bun src/migrate-cli.js",
+    "test": "bun test",
+    "lint": "bun run --bun biome check .",
+    "format": "bun run --bun biome format --write .",
+    "secrets:pull": "logicsrc teams pull profullstack d1sks-com prod --env .env",
+    "secrets:push": "logicsrc teams push profullstack d1sks-com prod --env .env"
+  },
+  "dependencies": {
+    "hono": "^4.10.3"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.0",
+    "bun-types": "^1.3.0"
+  }
+}

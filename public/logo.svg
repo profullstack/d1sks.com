@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>d1sks</title>
+  <rect width="64" height="64" rx="14" fill="#0c1116"/>
+  <g fill="none" stroke="#4fd1a1" stroke-width="4" stroke-linecap="round">
+    <ellipse cx="32" cy="18" rx="17" ry="6"/>
+    <path d="M15 18v10c0 3.3 7.6 6 17 6s17-2.7 17-6V18"/>
+    <path d="M15 28v10c0 3.3 7.6 6 17 6s17-2.7 17-6V28"/>
+    <path d="M15 38v8c0 3.3 7.6 6 17 6s17-2.7 17-6v-8"/>
+  </g>
+  <circle cx="44" cy="45" r="3" fill="#38b2ff"/>
+</svg>

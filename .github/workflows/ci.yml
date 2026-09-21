@@ -1,0 +1,25 @@
+name: ci
+on:
+  push: { branches: [main] }
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env: { POSTGRES_USER: d1sks, POSTGRES_PASSWORD: d1sks, POSTGRES_DB: d1sks }
+        ports: ['5443:5432']
+        options: >-
+          --health-cmd "pg_isready -U d1sks" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.4.0 }
+      - run: bun install --ignore-scripts
+      - run: bun run lint
+      - run: bun test
+        env:
+          DATABASE_URL: postgres://d1sks:d1sks@localhost:5443/d1sks
+          SITE_URL: http://localhost:3000
+          NODE_ENV: test
