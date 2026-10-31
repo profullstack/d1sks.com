@@ -20,6 +20,7 @@
     "secrets:push": "logicsrc teams push profullstack d1sks-com prod --env .env"
   },
   "dependencies": {
+    "@profullstack/footer": "latest",
     "hono": "^4.10.3"
   },
   "devDependencies": {
