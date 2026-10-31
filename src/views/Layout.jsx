@@ -1,5 +1,5 @@
-import { config } from '../config.js';
 import { footerHtmlSync } from '@profullstack/footer';
+import { config } from '../config.js';
 
 const footerLinks = [
   { label: 'OpenDisk', href: 'https://logicsrc.com/opendisk' },
