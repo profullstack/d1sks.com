@@ -1,4 +1,20 @@
 import { config } from '../config.js';
+import { footerHtmlSync } from '@profullstack/footer';
+
+const footerLinks = [
+  { label: 'OpenDisk', href: 'https://logicsrc.com/opendisk' },
+  { label: 'OpenObject', href: 'https://logicsrc.com/openobject' },
+  { label: 'Compute', href: 'https://c0mpute.com' },
+  { label: 'Pair', href: 'https://slic3s.com' },
+  { label: 'GitHub', href: 'https://github.com/profullstack/d1sks.com' },
+  { label: 'Profullstack', href: 'https://profullstack.com' },
+  { label: 'llms.txt', href: '/llms.txt' },
+  { label: 'openobject.json', href: '/.well-known/openobject.json' },
+  { label: 'openserver.json', href: '/.well-known/openserver.json' },
+  { label: 'Pool API', href: '/api/disks' },
+];
+const footerOptions = { site: 'https://d1sks.com/', tagline: 'MIT licensed', links: footerLinks };
+const footer = `<div data-profullstack-footer data-site="${footerOptions.site}" data-tagline="${footerOptions.tagline}" data-links='${JSON.stringify(footerLinks)}'>${footerHtmlSync(footerOptions)}</div><script type="module" src="https://cdn.jsdelivr.net/npm/@profullstack/footer@latest/src/embed.js"></script>`;
 
 export function Layout({ title, description, path = '/', children }) {
   const fullTitle = title ? `${title} · d1sks` : 'd1sks: the OpenDisk marketplace';
@@ -55,23 +71,7 @@ export function Layout({ title, description, path = '/', children }) {
           </nav>
         </header>
         <main id="main">{children}</main>
-        <footer class="foot">
-          <p>
-            d1sks.com is the reference marketplace for{' '}
-            <a href="https://logicsrc.com/opendisk">OpenDisk</a> and the reference store for{' '}
-            <a href="https://logicsrc.com/openobject">OpenObject</a>, two LogicSRC specifications.
-            Disk from here, compute from <a href="https://c0mpute.com">c0mpute.com</a>, the pair
-            from slic3s.com. Source on{' '}
-            <a href="https://github.com/profullstack/d1sks.com">GitHub</a>, MIT. By{' '}
-            <a href="https://profullstack.com">Profullstack, Inc.</a>
-          </p>
-          <p class="mono">
-            <a href="/llms.txt">llms.txt</a> ·{' '}
-            <a href="/.well-known/openobject.json">openobject.json</a> ·{' '}
-            <a href="/.well-known/openserver.json">openserver.json</a> ·{' '}
-            <a href="/api/disks">pool</a>
-          </p>
-        </footer>
+        <div dangerouslySetInnerHTML={{ __html: footer }} />
       </body>
     </html>
   );
