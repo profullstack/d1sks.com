@@ -56,7 +56,7 @@ export async function safeFetch(
     const res = await fetch(current, {
       headers: {
         accept: 'application/json',
-        'user-agent': 'd1sks.com/0.1 (+https://d1sks.com/docs)',
+        'user-agent': 'd1sks.com/0.1 (+https://d1sks.pwa.pit.world/docs)',
         ...headers,
       },
       redirect: 'manual',

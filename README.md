@@ -5,9 +5,9 @@
 Disk from here, compute from [c0mpute.com](https://c0mpute.com), the pair from slic3s.com.
 
 ```
-curl -s 'https://d1sks.com/api/v1/disks?country=DE&min_gib=500&sort=price' -H 'accept: application/json'
-curl -s -X POST https://d1sks.com/api/v1/disks -H 'content-type: application/json' -d '{"url":"https://your-disk.example"}'
-curl -s https://d1sks.com/.well-known/openobject.json
+curl -s 'https://d1sks.pwa.pit.world/api/v1/disks?country=DE&min_gib=500&sort=price' -H 'accept: application/json'
+curl -s -X POST https://d1sks.pwa.pit.world/api/v1/disks -H 'content-type: application/json' -d '{"url":"https://your-disk.example"}'
+curl -s https://d1sks.pwa.pit.world/.well-known/openobject.json
 ```
 
 ## What is in the box

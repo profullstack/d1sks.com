@@ -13,7 +13,7 @@ const footerLinks = [
   { label: 'openserver.json', href: '/.well-known/openserver.json' },
   { label: 'Pool API', href: '/api/disks' },
 ];
-const footerOptions = { site: 'https://d1sks.com/', tagline: 'MIT licensed', links: footerLinks };
+const footerOptions = { site: 'https://d1sks.pwa.pit.world/', tagline: 'MIT licensed', links: footerLinks };
 const footer = `<div data-profullstack-footer data-site="${footerOptions.site}" data-tagline="${footerOptions.tagline}" data-links='${JSON.stringify(footerLinks)}'>${footerHtmlSync(footerOptions)}</div><script type="module" src="https://cdn.jsdelivr.net/npm/@profullstack/footer@latest/src/embed.js"></script>`;
 
 export function Layout({ title, description, path = '/', children }) {
