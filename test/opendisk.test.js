@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'bun:test';
-import { descriptorUrl, diskId, generate, toOpenServerOffer, validate } from '../src/opendisk.js';
+import {
+  c0mputeOf,
+  descriptorUrl,
+  diskId,
+  generate,
+  isC0mputeHosting,
+  toOpenServerOffer,
+  validate,
+  wantsHosting,
+} from '../src/opendisk.js';
 
 const FULL = {
   name: 'seeder-a41e, Falkenstein',
@@ -33,6 +42,67 @@ const FULL = {
   payout: { payee: 'ed25519:a41e', network: 'eip155:8453' },
   extra: { anything: true },
 };
+
+const PEER = '12D3KooWSFxwveBjrGy4n1Djg3vpQD5aHPCXYCQHZWruffig7P4J';
+
+/** What a c0mpute node with the hosting role serves (node/crates/c0mpute-core/src/opendisk.rs). */
+const c0mputeDoc = (over = {}) => ({
+  opendisk: '0.1',
+  name: 'c0mpute node ffig7P4J',
+  capacity: { free_gib: 900, total_gib: 1000 },
+  price: { currency: 'USD', per_gib_month: 0.004 },
+  accepts: { visibility: ['public', 'private'], encrypted_only: false, hosting: true },
+  c0mpute: {
+    peer_id: PEER,
+    version: '0.2.79',
+    roles: ['storage', 'gateway', 'hosting'],
+    hosting: { price_per_gib_month: 0.003, max_gib: 5 },
+  },
+  ...over,
+});
+
+describe('c0mpute hosting disks', () => {
+  it('reads the c0mpute block of a hosting node', () => {
+    const c = c0mputeOf(c0mputeDoc());
+    expect(c.peer_id).toBe(PEER);
+    expect(c.hosting).toBe(true);
+    expect(c.hosting_price).toBe(0.003);
+    expect(c.hosting_max_gib).toBe(5);
+    expect(isC0mputeHosting(c0mputeDoc())).toBe(true);
+    const v = validate(c0mputeDoc());
+    expect(v.ok).toBe(true);
+    expect(v.disk.accepts.hosting).toBe(true);
+    expect(v.disk.c0mpute.peer_id).toBe(PEER);
+  });
+
+  it('counts the hosting role or accepts.hosting, either one', () => {
+    const roleOnly = c0mputeDoc({ accepts: {} });
+    expect(isC0mputeHosting(roleOnly)).toBe(true);
+    const flagOnly = c0mputeDoc();
+    flagOnly.c0mpute = { ...flagOnly.c0mpute, roles: ['storage'] };
+    expect(isC0mputeHosting(flagOnly)).toBe(true);
+  });
+
+  it('is not a hosting disk without the role, a c0mpute block or a real peer id', () => {
+    const storageOnly = c0mputeDoc({ accepts: { hosting: false } });
+    storageOnly.c0mpute = { peer_id: PEER, roles: ['storage'] };
+    expect(isC0mputeHosting(storageOnly)).toBe(false);
+    expect(c0mputeOf(storageOnly).hosting_price).toBe(null);
+    expect(isC0mputeHosting({ name: 'x', accepts: { hosting: true } })).toBe(false);
+    const badPeer = c0mputeDoc();
+    badPeer.c0mpute = { ...badPeer.c0mpute, peer_id: 'not a peer id' };
+    expect(c0mputeOf(badPeer)).toBe(null);
+    expect(isC0mputeHosting(null)).toBe(false);
+    expect(
+      validate({ name: 'x', capacity: { free_gib: 1 }, price: { per_gib_month: 1 } }).disk.c0mpute,
+    ).toBe(null);
+  });
+
+  it('parses the hosting listing parameter', () => {
+    for (const v of ['1', 'true', 'c0mpute']) expect(wantsHosting(v)).toBe(true);
+    for (const v of [undefined, '', '0', 'false', 'yes']) expect(wantsHosting(v)).toBe(false);
+  });
+});
 
 describe('descriptorUrl', () => {
   it('normalises a host, an origin and the file itself to the well-known path', () => {

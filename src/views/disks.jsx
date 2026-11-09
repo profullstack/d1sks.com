@@ -87,6 +87,15 @@ export function Disks({ result, page, params }) {
             </select>
           </label>
           <label>
+            Kind
+            <select name="hosting">
+              <option value="">any disk</option>
+              <option value="1" selected={params.hosting === '1'}>
+                c0mpute hosting
+              </option>
+            </select>
+          </label>
+          <label>
             Sort
             <select name="sort">
               {SORTS.map(([v, l]) => (
@@ -209,6 +218,21 @@ export function Disk({ disk: d, offer, notice }) {
         </div>
         <Warnings warnings={d.warnings} />
       </section>
+
+      {d.c0mpute_hosting ? (
+        <section class="band">
+          <h2>c0mpute hosting node</h2>
+          <p>
+            This disk is a <a href="https://c0mpute.com">c0mpute</a> node that holds static sites
+            for the network, at {fmtPrice(d.hosting_per_gib_month ?? d.per_gib_month, d.currency)}{' '}
+            per GiB-month. Pick it as a paid host with:
+          </p>
+          <Pre>{`c0mpute hosting publish ./public --name my-site --disks auto
+# or by peer id, through a d1sks query:
+c0mpute hosting disks --country ${d.countries[0] ?? 'DE'}`}</Pre>
+          <p class="muted mono">peer {d.c0mpute_peer_id}</p>
+        </section>
+      ) : null}
 
       <section class="band two">
         <div>

@@ -76,6 +76,40 @@ describe('d1sks end to end', () => {
     expect(offer.price.amount).toBe(0.07);
   });
 
+  it('filters c0mpute hosting disks and flags them in rows', async () => {
+    if (!dbOk) return;
+    const plain = await (await req('/api/v1/disks?hosting=1&country=PT')).json();
+    expect(plain.disks.some((d) => d.origin === origin)).toBe(false);
+    const keep = doc;
+    doc = {
+      ...doc,
+      accepts: { ...doc.accepts, hosting: true },
+      c0mpute: {
+        peer_id: '12D3KooWSFxwveBjrGy4n1Djg3vpQD5aHPCXYCQHZWruffig7P4J',
+        roles: ['storage', 'hosting'],
+        hosting: { price_per_gib_month: 0.003, max_gib: 5 },
+      },
+    };
+    const r = await req('/api/v1/disks', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url: origin }),
+    });
+    expect(r.status).toBe(201);
+    const list = await (await req('/api/v1/disks?hosting=1&country=PT')).json();
+    const row = list.disks.find((d) => d.origin === origin);
+    expect(row?.c0mpute_hosting).toBe(true);
+    expect(row.hosting_per_gib_month).toBe(0.003);
+    const html = await (await req('/disks?hosting=1&country=PT')).text();
+    expect(html).toContain('c0mpute hosting');
+    doc = keep;
+    await req('/api/v1/disks', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url: origin }),
+    });
+  });
+
   it('refuses a descriptor that is not valid, with the reason', async () => {
     if (!dbOk) return;
     const bad = { ...doc };

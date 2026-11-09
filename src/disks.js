@@ -1,7 +1,14 @@
 import { config } from './config.js';
 import { jsonb, sql } from './db.js';
 import { safeFetch } from './fetch.js';
-import { descriptorUrl, diskId, toOpenServerOffer, validate } from './opendisk.js';
+import {
+  c0mputeOf,
+  descriptorUrl,
+  diskId,
+  toOpenServerOffer,
+  validate,
+  wantsHosting,
+} from './opendisk.js';
 
 export const SORTS = ['price', 'free', 'standing', 'updated', 'name'];
 
@@ -9,6 +16,7 @@ const num = (v) => (v === null || v === undefined ? null : Number(v));
 
 function row(r) {
   if (!r) return null;
+  const c0 = c0mputeOf(jsonb(r.data, {}));
   return {
     id: r.id,
     origin: r.origin,
@@ -37,6 +45,10 @@ function row(r) {
     gone_since: r.gone_since,
     last_error: r.last_error,
     data: jsonb(r.data, {}),
+    // A c0mpute node that holds static sites: a host for `c0mpute hosting publish --disks`.
+    c0mpute_hosting: c0?.hosting === true,
+    c0mpute_peer_id: c0?.peer_id ?? null,
+    hosting_per_gib_month: c0?.hosting ? (c0.hosting_price ?? num(r.per_gib_month)) : null,
   };
 }
 
@@ -187,6 +199,11 @@ function whereClause(p) {
     Number.isFinite(Number(p.min_standing))
   )
     parts.push(sql`standing >= ${Number(p.min_standing)}`);
+  if (wantsHosting(p.hosting)) {
+    // Same rule as c0mputeOf(): a c0mpute peer id, and accepts.hosting or the hosting role.
+    parts.push(sql`(data->'c0mpute'->>'peer_id' is not null and (
+      data->'accepts'->'hosting' = 'true'::jsonb or data->'c0mpute'->'roles' @> ${['hosting']}::jsonb))`);
+  }
   if (p.q) {
     const like = `%${String(p.q).replace(/[%_\\]/g, '\\$&')}%`;
     parts.push(sql`(name ilike ${like} or origin ilike ${like})`);

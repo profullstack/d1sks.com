@@ -71,6 +71,10 @@ export function Docs() {
               <td>hub standing at least, as copied into the descriptor</td>
             </tr>
             <tr>
+              <td class="mono">hosting</td>
+              <td>1 for c0mpute nodes that hold static sites</td>
+            </tr>
+            <tr>
               <td class="mono">q</td>
               <td>name or origin contains</td>
             </tr>
@@ -96,6 +100,25 @@ curl -s '${s}/api/v1/stats'`}</Pre>
           Standing is shown as the disk copied it. A marketplace that ranks on standing reads the
           hub in <code>record.source</code>; d1sks shows the number and links the hub, and will read
           the hub itself once one is running.
+        </p>
+
+        <h2>Host a site on these disks</h2>
+        <p>
+          Every <a href="https://c0mpute.com">c0mpute</a> node with the hosting role lists itself
+          here with <code>accepts.hosting: true</code>, its peer id and its hosting price in the{' '}
+          <code>c0mpute</code> block of its descriptor. <code>?hosting=1</code> lists only those. To
+          pay some of them to keep your static site:
+        </p>
+        <Pre>{`c0mpute hosting publish ./public --name my-site --disks auto
+c0mpute hosting publish ./public --name my-site --disks auto --country DE,FI --max-price 0.01 --copies 3
+c0mpute hosting disks --country DE   # what --disks auto would pick`}</Pre>
+        <p>
+          The publisher asks d1sks once, ranks the hosting disks by price, standing and free space,
+          and signs the chosen peer ids and the agreed price into its site record. Everything after
+          that is peer to peer: the chosen nodes replicate first, the network still keeps at least
+          three copies, the publisher challenges holders with random chunk fetches, and pays the
+          ones that pass per GiB-month. d1sks is discovery only; a site keeps being served if d1sks
+          is down.
         </p>
 
         <h2>Validating</h2>
