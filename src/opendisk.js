@@ -159,7 +159,9 @@ export function validate(doc) {
       encrypted_only: typeof accepts.encrypted_only === 'boolean' ? accepts.encrypted_only : null,
       max_file_gib: isNum(accepts.max_file_gib) ? accepts.max_file_gib : null,
       feeds: typeof accepts.feeds === 'boolean' ? accepts.feeds : null,
+      hosting: typeof accepts.hosting === 'boolean' ? accepts.hosting : null,
     },
+    c0mpute: c0mputeOf(doc),
     proof: {
       kinds: proofKinds.filter((k) => PROOF_KINDS.includes(k)),
       every_hours_min:
@@ -183,6 +185,44 @@ export function validate(doc) {
     holding: isUrl(doc.holding) ? doc.holding : Array.isArray(doc.holding) ? doc.holding : null,
   };
   return { ok: true, errors, warnings, disk };
+}
+
+/**
+ * The c0mpute block a c0mpute node adds to its descriptor (unknown to
+ * OpenDisk, kept in the raw document): how to reach the disk on the c0mpute
+ * network and whether it hosts static sites. Null when absent or unusable.
+ */
+export function c0mputeOf(doc) {
+  if (!isObj(doc) || !isObj(doc.c0mpute)) return null;
+  const c = doc.c0mpute;
+  const peerId =
+    isStr(c.peer_id) && /^[1-9A-HJ-NP-Za-km-z]{40,64}$/.test(c.peer_id) ? c.peer_id : null;
+  if (!peerId) return null;
+  const roles = strList(c.roles);
+  const accepts = isObj(doc.accepts) ? doc.accepts : {};
+  const h = isObj(c.hosting) ? c.hosting : {};
+  const hosting = accepts.hosting === true || roles.includes('hosting');
+  return {
+    peer_id: peerId,
+    version: isStr(c.version) ? c.version : null,
+    roles,
+    hosting,
+    hosting_price:
+      hosting && isNum(h.price_per_gib_month) && h.price_per_gib_month >= 0
+        ? h.price_per_gib_month
+        : null,
+    hosting_max_gib: hosting && isNum(h.max_gib) && h.max_gib >= 0 ? h.max_gib : null,
+  };
+}
+
+/** True for a c0mpute node that holds static sites (`c0mpute hosting publish --disks`). */
+export function isC0mputeHosting(doc) {
+  return c0mputeOf(doc)?.hosting === true;
+}
+
+/** The `hosting` listing parameter: true to list only c0mpute hosting disks. */
+export function wantsHosting(v) {
+  return v === '1' || v === 'true' || v === 'c0mpute' || v === true;
 }
 
 /** One seeder identity is one disk, whatever URL it was found at. */

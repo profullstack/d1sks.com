@@ -41,6 +41,11 @@ export function DiskRow({ d }) {
         <strong>{d.name}</strong>
         <span class="muted mono">{new URL(d.origin).host}</span>
         {d.status === 'gone' ? <span class="badge gone">gone</span> : null}
+        {d.c0mpute_hosting ? (
+          <span class="badge ok" title="A c0mpute node that holds static sites">
+            c0mpute hosting
+          </span>
+        ) : null}
       </div>
       <div class="row-meta">
         <span title="Free">{fmtGib(d.free_gib)} free</span>
@@ -61,6 +66,12 @@ export function DiskRow({ d }) {
         <span title="Hub standing">
           {d.standing === null ? 'standing unstated' : `standing ${d.standing}`}
         </span>
+        {d.c0mpute_hosting && d.hosting_per_gib_month !== null ? (
+          <span title="Price to hold a static site, per GiB-month">
+            hosting {fmtPrice(d.hosting_per_gib_month)}
+            <small>/GiB·mo</small>
+          </span>
+        ) : null}
       </div>
     </a>
   );
