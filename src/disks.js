@@ -10,7 +10,7 @@ import {
   wantsHosting,
 } from './opendisk.js';
 
-export const SORTS = ['price', 'free', 'standing', 'updated', 'name'];
+export const SORTS = ['price', 'free', 'standing', 'updated', 'name', 'heartbeat'];
 
 const num = (v) => (v === null || v === undefined ? null : Number(v));
 
@@ -49,6 +49,19 @@ function row(r) {
     c0mpute_hosting: c0?.hosting === true,
     c0mpute_peer_id: c0?.peer_id ?? null,
     hosting_per_gib_month: c0?.hosting ? (c0.hosting_price ?? num(r.per_gib_month)) : null,
+    // How the row stays fresh: 'origin' (fetched hourly) or 'signed' (the disk
+    // pushes a signed heartbeat and the row expires when it goes quiet).
+    source: r.source ?? 'origin',
+    peer_id: r.peer_id ?? c0?.peer_id ?? null,
+    // https (a public origin), direct (a public multiaddr) or c0mpute (behind
+    // NAT, reached through the c0mpute network; no direct URL).
+    reachable: r.reachable ?? (r.source === 'signed' ? null : 'https'),
+    addrs: jsonb(r.addrs, []),
+    heartbeat_at: r.heartbeat_at ?? null,
+    heartbeat_age_s: r.heartbeat_at
+      ? Math.max(0, Math.round((Date.now() - new Date(r.heartbeat_at).getTime()) / 1000))
+      : null,
+    expires_at: r.expires_at ?? null,
   };
 }
 
@@ -158,7 +171,7 @@ export async function failed(id, message) {
 export async function due(limit = config.poll.batch) {
   return sql`
     select id, url, origin, etag from disks
-    where fetched_at < now() - make_interval(mins => ${config.poll.staleMinutes})
+    where source = 'origin' and fetched_at < now() - make_interval(mins => ${config.poll.staleMinutes})
     order by fetched_at asc limit ${limit}`;
 }
 
@@ -170,7 +183,18 @@ export async function get(id) {
 function whereClause(p) {
   const parts = [];
   const status = p.status === 'all' ? null : p.status === 'gone' ? 'gone' : 'active';
-  if (status) parts.push(sql`status = ${status}`);
+  if (status === 'active')
+    parts.push(sql`status = 'active' and (expires_at is null or expires_at > now())`);
+  else if (status) parts.push(sql`status = ${status}`);
+  if (p.source === 'signed' || p.source === 'origin') parts.push(sql`source = ${p.source}`);
+  if (p.reachable === 'public')
+    parts.push(sql`coalesce(reachable, 'https') in ('https', 'direct')`);
+  else if (['https', 'direct', 'c0mpute'].includes(p.reachable))
+    parts.push(sql`coalesce(reachable, 'https') = ${p.reachable}`);
+  if (p.fresh !== undefined && p.fresh !== '' && Number.isFinite(Number(p.fresh)))
+    parts.push(
+      sql`(source = 'origin' or heartbeat_at > now() - make_interval(mins => ${Math.max(1, Number(p.fresh))}))`,
+    );
   if (p.country) {
     const codes = String(p.country)
       .toUpperCase()
@@ -225,6 +249,8 @@ function orderClause(sort, dir) {
         : sql`coalesce(descriptor_updated_at, fetched_at) asc`;
     case 'name':
       return desc ? sql`name desc` : sql`name asc`;
+    case 'heartbeat':
+      return desc ? sql`heartbeat_at desc nulls last` : sql`heartbeat_at asc nulls last`;
     default:
       return desc ? sql`per_gib_month desc` : sql`per_gib_month asc`;
   }
@@ -235,7 +261,8 @@ export async function list(p = {}) {
   const limit = Math.min(Math.max(Number(p.limit) || 50, 1), 200);
   const offset = Math.max(Number(p.offset) || 0, 0);
   const sort = SORTS.includes(p.sort) ? p.sort : 'price';
-  const defaultDesc = sort === 'free' || sort === 'standing' || sort === 'updated';
+  const defaultDesc =
+    sort === 'free' || sort === 'standing' || sort === 'updated' || sort === 'heartbeat';
   const dir = p.order === 'desc' || (p.order === undefined && defaultDesc) ? 'desc' : 'asc';
   const where = whereClause(p);
   const rows =
@@ -259,6 +286,8 @@ export async function list(p = {}) {
 export async function stats() {
   const [r] = await sql`
     select count(*) filter (where status = 'active')::int as active,
+           count(*) filter (where status = 'active' and source = 'signed')::int as signed,
+           count(*) filter (where status = 'active' and reachable = 'c0mpute')::int as behind_nat,
            count(*) filter (where status = 'gone')::int as gone,
            coalesce(sum(free_gib) filter (where status = 'active'), 0)::float as free_gib,
            count(distinct operator) filter (where status = 'active' and operator is not null)::int as operators,
@@ -273,8 +302,8 @@ export async function stats() {
 
 /** Every active descriptor, as the OpenObject store's `disks` pool. */
 export async function pool() {
-  const rows =
-    await sql`select * from disks where status = 'active' order by per_gib_month asc, name asc`;
+  const rows = await sql`select * from disks where status = 'active'
+    and (expires_at is null or expires_at > now()) order by per_gib_month asc, name asc`;
   return rows.map(row);
 }
 
@@ -285,4 +314,96 @@ export function offerOf(d) {
     { ...v.disk, data: d.data },
     { url: d.url, origin: d.origin, updated: d.descriptor_updated_at ?? d.fetched_at },
   );
+}
+
+/* ---------- signed listings ---------- */
+
+class Limited extends Error {
+  constructor(message, status = 429) {
+    super(message);
+    this.status = status;
+  }
+}
+
+export async function logAnnounce(ip, key, ok, detail) {
+  await sql`insert into announces (ip, key, ok, detail)
+    values (${ip}, ${key}, ${ok}, ${String(detail ?? '').slice(0, 300)})`;
+}
+
+/**
+ * Store a verified signed listing (see announce.js). Rate limits: one
+ * accepted heartbeat per key per `announce.minSecs`, `perIpPerHour` per
+ * address, `newKeysPerIpPerDay` distinct new keys per address. A `ts` not
+ * newer than the last one stored is a replay. Throws `Limited` with a status.
+ */
+export async function announce(l, { ip = null } = {}) {
+  const id = diskId(l.disk, l.origin ?? 'https://c0mpute.invalid');
+  const [prev] = await sql`select announce_ts, heartbeat_at, source from disks where id = ${id}`;
+  if (
+    prev?.announce_ts !== null &&
+    prev?.announce_ts !== undefined &&
+    Number(prev.announce_ts) >= l.ts
+  )
+    throw new Limited('Replayed or out-of-order listing (`ts` is not newer).', 409);
+  if (
+    prev?.heartbeat_at &&
+    Date.now() - new Date(prev.heartbeat_at).getTime() < config.announce.minSecs * 1000
+  )
+    throw new Limited(`One heartbeat per ${config.announce.minSecs} s per key.`);
+  if (ip) {
+    const [h] = await sql`select count(*)::int as n from announces
+      where ip = ${ip} and created_at > now() - interval '1 hour'`;
+    if ((h?.n ?? 0) >= config.announce.perIpPerHour)
+      throw new Limited('Too many listings from this address; try again later.');
+    if (!prev) {
+      const [k] = await sql`select count(distinct key)::int as n from announces
+        where ip = ${ip} and ok and created_at > now() - interval '1 day'`;
+      if ((k?.n ?? 0) >= config.announce.newKeysPerIpPerDay)
+        throw new Limited('Too many new disks from this address today.');
+    }
+  }
+
+  const d = l.disk;
+  const origin = l.origin ?? `c0mpute://${l.peerId}`;
+  const url = l.origin ? `${l.origin}/.well-known/opendisk.json` : `c0mpute://${l.peerId}`;
+  const standing = d.record.standing === null ? null : Math.round(d.record.standing);
+  const [r] = await sql`
+    insert into disks (id, origin, url, name, key, operator, web, free_gib, total_gib, per_gib_month,
+      currency, countries, regions, visibility, bases, encrypted_only, hubs, proof_hours, standing,
+      data, warnings, etag, descriptor_updated_at, fetched_at, status, gone_since, failures, last_error,
+      source, peer_id, heartbeat_at, expires_at, announce_ts, reachable, addrs)
+    values (${id}, ${origin}, ${url}, ${d.name}, ${d.key}, ${d.operator},
+      ${d.web}, ${d.capacity.free_gib}, ${d.capacity.total_gib}, ${d.price.per_gib_month}, ${d.price.currency},
+      ${d.location.countries}::jsonb, ${d.location.regions}::jsonb,
+      ${d.accepts.visibility}::jsonb, ${d.accepts.bases}::jsonb,
+      ${d.accepts.encrypted_only}, ${d.hubs}::jsonb, ${d.proof.every_hours_min}, ${standing},
+      ${l.doc}::jsonb, ${l.warnings}::jsonb, null, ${d.updated},
+      now(), 'active', null, 0, null,
+      'signed', ${l.peerId}, now(), now() + make_interval(secs => ${l.expiresIn}), ${l.ts},
+      ${l.reachable}, ${l.addrs}::jsonb)
+    on conflict (id) do update set
+      origin = excluded.origin, url = excluded.url, name = excluded.name, key = excluded.key,
+      operator = excluded.operator, web = excluded.web, free_gib = excluded.free_gib,
+      total_gib = excluded.total_gib, per_gib_month = excluded.per_gib_month, currency = excluded.currency,
+      countries = excluded.countries, regions = excluded.regions, visibility = excluded.visibility,
+      bases = excluded.bases, encrypted_only = excluded.encrypted_only, hubs = excluded.hubs,
+      proof_hours = excluded.proof_hours, standing = excluded.standing, data = excluded.data,
+      warnings = excluded.warnings, etag = null,
+      descriptor_updated_at = excluded.descriptor_updated_at, fetched_at = now(),
+      status = 'active', gone_since = null, failures = 0, last_error = null,
+      source = 'signed', peer_id = excluded.peer_id, heartbeat_at = now(),
+      expires_at = excluded.expires_at, announce_ts = excluded.announce_ts,
+      reachable = excluded.reachable, addrs = excluded.addrs
+    returning *`;
+  return row(r);
+}
+
+/** Signed listings whose heartbeat stopped: gone (never deleted). Old announce log rows go. */
+export async function expireSigned() {
+  const gone = await sql`
+    update disks set status = 'gone', gone_since = coalesce(gone_since, expires_at)
+    where source = 'signed' and status = 'active' and expires_at < now()
+    returning id`;
+  await sql`delete from announces where created_at < now() - interval '2 days'`;
+  return gone.length;
 }

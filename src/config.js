@@ -36,5 +36,19 @@ export const config = Object.freeze({
     maxBytes: num(env.FETCH_MAX_BYTES, 256 * 1024),
   },
   submit: { perIpPerHour: num(env.SUBMIT_PER_IP_PER_HOUR, 30) },
+  announce: {
+    // Signed heartbeats: at most one accepted per key per minSecs, this many
+    // per address per hour, and this many distinct new keys per address a day.
+    minSecs: num(env.ANNOUNCE_MIN_SECS, 60),
+    perIpPerHour: num(env.ANNOUNCE_PER_IP_PER_HOUR, 600),
+    newKeysPerIpPerDay: num(env.ANNOUNCE_NEW_KEYS_PER_IP_PER_DAY, 50),
+    // The hostnames a listing may be signed for (this site answers to all).
+    hosts: [
+      ...new Set([
+        new URL(siteUrl).host.toLowerCase(),
+        ...list(env.ANNOUNCE_HOSTS ?? 'd1sks.com,www.d1sks.com,d1sks.pwa.pit.world'),
+      ]),
+    ],
+  },
   operator: env.OPERATOR_URL ?? 'https://profullstack.com/.well-known/openprofile.md',
 });

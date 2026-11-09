@@ -34,12 +34,21 @@ export function Stat({ label, value }) {
   );
 }
 
+/** Where a disk lives, for a person: its origin's host, or how c0mpute reaches it. */
+export function whereOf(d) {
+  if (d.reachable === 'c0mpute') return 'reachable via c0mpute (behind NAT, no direct URL)';
+  if (d.origin?.startsWith('https://') || d.origin?.startsWith('http://'))
+    return new URL(d.origin).host;
+  if (d.reachable === 'direct') return 'direct over c0mpute (public address)';
+  return d.peer_id ? `c0mpute peer ${d.peer_id.slice(-8)}` : '';
+}
+
 export function DiskRow({ d }) {
   return (
     <a class="row" href={`/disks/${encodeURIComponent(d.id)}`}>
       <div class="row-main">
         <strong>{d.name}</strong>
-        <span class="muted mono">{new URL(d.origin).host}</span>
+        <span class="muted mono">{whereOf(d)}</span>
         {d.status === 'gone' ? <span class="badge gone">gone</span> : null}
         {d.c0mpute_hosting ? (
           <span class="badge ok" title="A c0mpute node that holds static sites">
@@ -66,6 +75,9 @@ export function DiskRow({ d }) {
         <span title="Hub standing">
           {d.standing === null ? 'standing unstated' : `standing ${d.standing}`}
         </span>
+        {d.source === 'signed' && d.heartbeat_at ? (
+          <span title="Last signed heartbeat">seen {ago(d.heartbeat_at)}</span>
+        ) : null}
         {d.c0mpute_hosting && d.hosting_per_gib_month !== null ? (
           <span title="Price to hold a static site, per GiB-month">
             hosting {fmtPrice(d.hosting_per_gib_month)}
