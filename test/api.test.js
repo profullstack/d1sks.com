@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { app } from '../src/app.jsx';
-import { close, migrate, sql } from '../src/db.js';
+import { migrate, sql } from '../src/db.js';
 import { pollOnce } from '../src/poller.js';
 
 /**
@@ -41,9 +41,10 @@ beforeAll(async () => {
   });
   origin = `http://localhost:${server.port}`;
 });
+// The pool is shared by every test file in this process (Bun runs them in one),
+// so no file closes it; the runner exits when the tests are done.
 afterAll(async () => {
   server?.stop(true);
-  if (dbOk) await close();
 });
 
 describe('d1sks end to end', () => {

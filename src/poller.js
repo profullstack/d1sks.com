@@ -44,9 +44,19 @@ export function startPoller({ log = console.log } = {}) {
   };
   timer = setInterval(tick, config.poll.minutes * 60_000);
   setTimeout(tick, 5_000);
+  // Signed listings expire on their own clock, not the poll's.
+  const expiry = setInterval(async () => {
+    try {
+      const n = await disks.expireSigned();
+      if (n) log(`[expire] ${n} signed listing(s) went quiet`);
+    } catch (err) {
+      log(`[expire] failed: ${err?.message ?? err}`);
+    }
+  }, 60_000);
   return {
     stop() {
       if (timer) clearInterval(timer);
+      clearInterval(expiry);
       timer = null;
     },
   };

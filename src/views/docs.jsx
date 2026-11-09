@@ -35,6 +35,31 @@ export function Docs() {
           absence.
         </p>
 
+        <h2>Signed listings (behind NAT too)</h2>
+        <p>
+          A disk with an ed25519 libp2p identity, such as every{' '}
+          <a href="https://c0mpute.com">c0mpute</a> node, does not need a public origin. It pushes
+          its descriptor, signed with its own key, and re-sends it as a heartbeat (c0mpute nodes
+          every 5 minutes). The listing expires when the heartbeats stop.
+        </p>
+        <Pre>{`POST ${s}/api/v1/disks/announce
+{ "payload": "<JSON text>", "signature": "<hex ed25519 signature over the payload text>" }
+
+payload: { "type": "c0mpute.disk.announce/1", "marketplace": "${new URL(s).host}",
+           "peer_id": "12D3KooW...", "key": "ed25519:<64 hex>", "ts": <unix seconds>,
+           "expires_in": 1200, "origin": null | "https://...",
+           "descriptor": { <OpenDisk 0.1>, "c0mpute": { "addrs": ["/ip4/.../tcp/..."], ... } } }`}</Pre>
+        <p>
+          d1sks checks that <code>peer_id</code> is the key's own peer id and that the signature
+          holds, that <code>ts</code> is within ten minutes and newer than the last one, that the
+          listing was signed for this marketplace, and that the numbers are sane. One heartbeat per
+          key per minute is accepted, and an address may add a limited number of new keys a day. A
+          disk with no https origin and no public address is shown as <em>reachable via c0mpute</em>
+          : there is no URL to open, but holders and gateways reach it over libp2p. Opting out on a
+          c0mpute node: <code>[storage] list_on_d1sks = false</code> or <code>C0MPUTE_D1SKS=0</code>
+          .
+        </p>
+
         <h2>Reading disks</h2>
         <p>
           The page at <a href="/disks">/disks</a> and <code>GET /api/v1/disks</code> take the same
@@ -53,6 +78,18 @@ export function Docs() {
             <tr>
               <td class="mono">max_price</td>
               <td>per GiB-month at most, in the disk's own currency</td>
+            </tr>
+            <tr>
+              <td class="mono">reachable</td>
+              <td>https, direct, c0mpute (behind NAT), or public (https or direct)</td>
+            </tr>
+            <tr>
+              <td class="mono">fresh</td>
+              <td>minutes: signed listings heard from within that long (origin listings pass)</td>
+            </tr>
+            <tr>
+              <td class="mono">source</td>
+              <td>signed or origin</td>
             </tr>
             <tr>
               <td class="mono">encrypted</td>

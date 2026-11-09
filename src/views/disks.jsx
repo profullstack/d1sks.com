@@ -1,6 +1,6 @@
 import { config } from '../config.js';
 import { Layout } from './Layout.jsx';
-import { ago, DiskRow, flag, fmtGib, fmtPrice, Pre, Warnings } from './parts.jsx';
+import { ago, DiskRow, flag, fmtGib, fmtPrice, Pre, Warnings, whereOf } from './parts.jsx';
 
 const SORTS = [
   ['price', 'Cheapest'],
@@ -8,6 +8,7 @@ const SORTS = [
   ['standing', 'Best standing'],
   ['updated', 'Recently updated'],
   ['name', 'Name'],
+  ['heartbeat', 'Last heartbeat'],
 ];
 
 export function Disks({ result, page, params }) {
@@ -25,9 +26,9 @@ export function Disks({ result, page, params }) {
       <section class="band">
         <h1>Disks</h1>
         <p class="lead">
-          {result.total} {result.total === 1 ? 'disk' : 'disks'} listed. Each one serves its own{' '}
-          <code>/.well-known/opendisk.json</code>; this page is what those files say, refetched
-          hourly.
+          {result.total} {result.total === 1 ? 'disk' : 'disks'} listed. Each one either serves its
+          own <code>/.well-known/opendisk.json</code> (refetched hourly) or pushes a signed listing
+          every few minutes, so disks behind NAT list too and drop off when they go quiet.
         </p>
         <form class="filters" method="get" action="/disks">
           <label>
@@ -165,7 +166,8 @@ export function Disks({ result, page, params }) {
 
 export function Disk({ disk: d, offer, notice }) {
   const raw = d.data;
-  const host = new URL(d.origin).host;
+  const host = whereOf(d);
+  const signed = d.source === 'signed';
   return (
     <Layout
       title={d.name}
@@ -295,13 +297,37 @@ c0mpute hosting disks --country ${d.countries[0] ?? 'DE'}`}</Pre>
                 'unstated'
               )}
             </dd>
+            <dt>Reached</dt>
+            <dd>
+              {d.reachable === 'c0mpute'
+                ? 'through c0mpute: behind NAT, no direct URL; holders and gateways reach it over libp2p'
+                : d.reachable === 'direct'
+                  ? 'directly over c0mpute (a public libp2p address)'
+                  : 'at its https origin'}
+              {d.addrs?.length ? d.addrs.map((a) => <div class="mono muted">{a}</div>) : null}
+            </dd>
             <dt>Descriptor</dt>
             <dd>
-              <a href={d.url} class="mono">
-                {d.url}
-              </a>
+              {signed ? (
+                <div>
+                  signed listing, key checked against peer <span class="mono">{d.peer_id}</span>
+                  {d.origin.startsWith('https://') ? (
+                    <div>
+                      <a href={d.url} class="mono">
+                        {d.url}
+                      </a>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <a href={d.url} class="mono">
+                  {d.url}
+                </a>
+              )}
               <div class="muted">
-                fetched {ago(d.fetched_at)}
+                {signed
+                  ? `last heartbeat ${ago(d.heartbeat_at)}; expires ${d.expires_at ? `at ${new Date(d.expires_at).toISOString().slice(11, 16)} UTC unless re-sent` : 'unless re-sent'}`
+                  : `fetched ${ago(d.fetched_at)}`}
                 {d.descriptor_updated_at
                   ? `, updated by the disk ${ago(d.descriptor_updated_at)}`
                   : ''}

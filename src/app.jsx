@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Hono } from 'hono';
+import { Refused, verifyListing } from './announce.js';
 import { config } from './config.js';
 import * as disks from './disks.js';
 import { safeFetch } from './fetch.js';
@@ -165,10 +166,11 @@ app.get('/api/v1', (c) =>
     documentation: `${config.siteUrl}/docs`,
     llms: `${config.siteUrl}/llms.txt`,
     endpoints: [
-      'GET /api/v1/disks?country=&min_gib=&max_price=&encrypted=&visibility=&base=&min_standing=&q=&sort=price|free|standing|updated|name&order=&limit=&offset=&status=active|gone|all',
+      'GET /api/v1/disks?country=&min_gib=&max_price=&encrypted=&visibility=&base=&min_standing=&hosting=1&reachable=https|direct|c0mpute|public&source=signed|origin&fresh=<minutes>&q=&sort=price|free|standing|updated|name|heartbeat&order=&limit=&offset=&status=active|gone|all',
       'GET /api/v1/disks/:id',
       'GET /api/v1/disks/:id/openserver.json',
       'POST /api/v1/disks {"url": "https://example.com"}',
+      'POST /api/v1/disks/announce {"payload": "<JSON text>", "signature": "<hex ed25519>"} (signed listing, c0mpute.disk.announce/1)',
       'GET /api/v1/validate?url=https://example.com',
       'POST /api/v1/validate <descriptor JSON>',
       'GET /api/v1/stats',
@@ -199,6 +201,46 @@ app.post('/api/v1/disks', async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const r = await submitGuarded(c, body.url ?? body.origin);
   return c.json({ ok: true, disk: r.disk, warnings: r.warnings }, 201);
+});
+/**
+ * A signed listing pushed by the disk itself (a c0mpute node, NAT or not):
+ * verified against the key inside the peer id, no origin fetch.
+ */
+app.post('/api/v1/disks/announce', async (c) => {
+  const ip = ipOf(c);
+  const text = await c.req.text();
+  if (text.length > 32 * 1024) throw new Denied('The listing is too large.', 413);
+  let body;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    throw new Denied('Send the signed listing as JSON.');
+  }
+  let listing;
+  try {
+    listing = verifyListing(body, { hosts: config.announce.hosts });
+  } catch (err) {
+    if (!(err instanceof Refused)) throw err;
+    await disks.logAnnounce(ip, null, false, err.message);
+    throw new Denied(err.message, err.status);
+  }
+  let disk;
+  try {
+    disk = await disks.announce(listing, { ip });
+  } catch (err) {
+    if (!err?.status) throw err;
+    await disks.logAnnounce(ip, listing.key, false, err.message);
+    if (err.status === 429) c.header('retry-after', String(config.announce.minSecs));
+    throw new Denied(err.message, err.status);
+  }
+  await disks.logAnnounce(ip, listing.key, true, disk.id);
+  return c.json({
+    ok: true,
+    id: disk.id,
+    reachable: disk.reachable,
+    expires_at: disk.expires_at,
+    url: `${config.siteUrl}/disks/${encodeURIComponent(disk.id)}`,
+  });
 });
 app.get('/api/v1/validate', async (c) => c.json(await validateRemote(params(c).url)));
 app.post('/api/v1/validate', async (c) => {
@@ -319,6 +361,7 @@ function llmsTxt(s) {
 
 ## Write
 - POST ${config.siteUrl}/api/v1/disks with {"url": "https://your-disk.example"}: fetches /.well-known/opendisk.json from that origin, validates it against OpenDisk 0.1, lists it.
+- POST ${config.siteUrl}/api/v1/disks/announce with {"payload": "<JSON text>", "signature": "<hex>"}: a signed listing (type c0mpute.disk.announce/1) from a disk with an ed25519 libp2p key, NAT or not. The peer id must be the key's; the listing expires unless re-sent (c0mpute nodes send one every 5 minutes). ${s.signed ?? 0} disks list this way, ${s.behind_nat ?? 0} of them behind NAT (reachable through c0mpute, no direct URL).
 - GET ${config.siteUrl}/api/v1/validate?url=… checks a descriptor without listing it; POST a descriptor body to /api/v1/validate to check one before serving it.
 
 ## Specs
