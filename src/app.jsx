@@ -35,7 +35,7 @@ app.use('*', async (c, next) => {
   if (!c.req.path.startsWith('/api/') && !c.req.path.startsWith('/openobject/'))
     c.header(
       'content-security-policy',
-      "default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'none'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+      "default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self' https://cdn.jsdelivr.net; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
     );
   await next();
 });
@@ -61,6 +61,7 @@ const STATIC = {
   '/logo.svg': ['logo.svg', 'image/svg+xml'],
   '/favicon.svg': ['logo.svg', 'image/svg+xml'],
   '/favicon.ico': ['logo.svg', 'image/svg+xml'],
+  '/webmcp-tools.js': ['webmcp-tools.js', 'text/javascript; charset=utf-8'],
 };
 for (const [path, [file, type]] of Object.entries(STATIC))
   app.get(path, async (c) => {

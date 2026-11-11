@@ -57,6 +57,24 @@ export function Layout({ title, description, path = '/', children }) {
         <meta property="og:title" content={fullTitle} />
         <meta property="og:description" content={desc} />
         <meta property="og:url" content={`${config.siteUrl}${path}`} />
+        {/* WebMCP (@profullstack/webmcp): the marketplace's tools for an AI
+            agent in the visitor's browser. The only script on the site. */}
+        <script
+          type="module"
+          data-webmcp=""
+          src="https://cdn.jsdelivr.net/npm/@profullstack/webmcp@0/src/embed.js"
+          data-search-api="/api/v1/disks?q={query}&limit={limit}"
+          data-search-description="Search OpenDisk listings by name, country or storage, cheapest first."
+          data-pages={JSON.stringify({
+            disks: '/disks',
+            list_a_disk: '/submit',
+            validate: '/validate',
+            serve: '/serve',
+            store: '/store',
+            docs: '/docs',
+          })}
+        ></script>
+        <script type="module" src="/webmcp-tools.js"></script>
       </head>
       <body>
         <header class="top">

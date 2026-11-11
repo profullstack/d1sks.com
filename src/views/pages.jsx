@@ -144,7 +144,13 @@ export function Submit({ url = '', error }) {
           seeder key is one disk, whatever URL it was found at.
         </p>
         {error ? <p class="error">{error}</p> : null}
-        <form method="post" action="/disks" class="stack">
+        <form
+          method="post"
+          action="/disks"
+          class="stack"
+          toolname="submit_disk"
+          tooldescription="List a disk on d1sks by its origin URL (d1sks fetches its /.well-known/opendisk.json). Fills the form; the person presses the button."
+        >
           <label>
             Origin
             <input
@@ -198,7 +204,14 @@ export function Validate({ url = '', result }) {
         <p class="lead">
           Fetches the file and says what a reader will make of it, without listing anything.
         </p>
-        <form method="get" action="/validate" class="stack">
+        <form
+          method="get"
+          action="/validate"
+          class="stack"
+          toolname="validate_disk"
+          tooldescription="Check a disk origin's /.well-known/opendisk.json against OpenDisk 0.1 without listing it."
+          toolautosubmit=""
+        >
           <label>
             Origin
             <input

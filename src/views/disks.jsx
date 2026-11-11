@@ -30,7 +30,14 @@ export function Disks({ result, page, params }) {
           own <code>/.well-known/opendisk.json</code> (refetched hourly) or pushes a signed listing
           every few minutes, so disks behind NAT list too and drop off when they go quiet.
         </p>
-        <form class="filters" method="get" action="/disks">
+        <form
+          class="filters"
+          method="get"
+          action="/disks"
+          toolname="filter_disks"
+          tooldescription="Filter the disk listings on this page by country, minimum free space and sort order."
+          toolautosubmit=""
+        >
           <label>
             Country
             <select name="country">
